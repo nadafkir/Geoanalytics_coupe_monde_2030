@@ -1,0 +1,79 @@
+# services:
+#   geoanalytics_backend:
+#     build: ./backend
+#     container_name: geoanalytics_backend
+#     restart: always
+#     ports:
+#       - "8001:8000"
+#     env_file:
+#       - .env
+#     volumes:
+#       - ./backend:/app
+#     depends_on:
+#       - db
+#     networks:
+#       - geo_network
+
+#   db:
+#     image: postgis/postgis:15-3.4
+#     container_name: geoanalytics_db
+#     restart: always
+#     env_file:
+#       - .env
+#     ports:
+#       - "5432:5432"
+#     networks:
+#       - geo_network
+
+#     volumes:
+#       - geoanalytics_db_data:/var/lib/postgresql/data
+
+# networks:
+#   geo_network:
+#     driver: bridge
+# volumes:
+#   geoanalytics_db_data: {}
+
+services:
+  geoanalytics_backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: geoanalytics_backend
+    restart: always
+    ports:
+      - "8001:8000"  # 8001 sur ton host → 8000 dans le container
+    env_file:
+      - .env
+    volumes:
+      # Monte uniquement le dossier app pour live reload
+      - ./backend/app:/app/app
+    depends_on:
+      - db
+    networks:
+      - geo_network
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload   
+
+  db:
+    image: postgis/postgis:15-3.4
+    container_name: geoanalytics_db
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    networks:
+      - geo_network
+    volumes:
+      - geoanalytics_db_data:/var/lib/postgresql/data
+
+networks:
+  geo_network:
+    driver: bridge
+
+volumes:
+  geoanalytics_db_data: {}
