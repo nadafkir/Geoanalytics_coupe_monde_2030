@@ -225,11 +225,13 @@ Parfait pour :
 
 ### 📌 Metrics
 
-| Endpoint | Description |
-|-------|------------|
-| `/metrics/density` | Densité simple |
-| `/metrics/density_pondered` | Densité pondérée |
-| `/metrics/accessibility_score` | Score global |
+| Endpoint | Description | exemple d'url |
+|-------|------------|------------|
+| `/metrics/density` | Densité simple | exemple : /metrics/density?city_id=4818907&minlat=34.88&minlon=-2.37&maxlat=35.00&maxlon=-2.28 |
+| `/metrics/density_pondered` | Densité pondérée | exemple : /metrics/density_pondered?city_id=4818907&minlat=34.88&minlon=-2.37&maxlat=35.00&maxlon=-2.28 |
+| `/metrics/accessibility_score` | Score global | exemple : /metrics/accessibility_score?city_id=4818907&lat=34.95&lon=-2.33&radius_m=800 |
+
+vous pouvez faire cela pour la ville toute entiere : n est pas valable encore -- A corriger --
 
 ---
 
@@ -237,7 +239,7 @@ Parfait pour :
 
 | Endpoint | Description | exemple de url |
 |-------|------------|------------|
-| `/pois` | Tous les POIs | exemple : http://localhost:8001/pois |
+| `/pois` | Tous les POIs dans la base de données ou dans une ville | exemple: /pois OU /pois? city_id=4818907 |
 | `/pois_area` | POIs dans une zone | exemple : /pois_area?city_id=4818907&minlat=34.88&minlon=-2.37&maxlat=35.00&maxlon=-2.28&category=public_transport |
 | `/nearest_pois` | POIs les plus proches à un point | exemple : /nearest_pois?city_id=4818907&lat=34.95&lon=-2.30&category=public_transport&limit=5|
 
@@ -245,9 +247,9 @@ Parfait pour :
 
 ## 🔒 Robustesse du système
 
-- Extraction automatique depuis OpenStreetMap
+- Extraction automatique depuis OpenStreetMap dans le cas si la base de données ne contient pas les pois d'une ville demandée, alors on ne stocke que les POIs réellement nécessaires, la base de données ne devient pas inutilement volumineuse j ai comme avantages : Base légère au départ, Dynamique et flexible, Garantie de disponibilité
 - Mise en cache en base de données
-- Validation des entrées utilisateur
+- Validation des entrées utilisateur 
 - Calculs géographiques réalistes
 - Architecture modulaire et extensible
 
