@@ -231,7 +231,7 @@ Parfait pour :
 | `/metrics/density_pondered` | Densité pondérée | exemple : /metrics/density_pondered?city_id=4818907&minlat=34.88&minlon=-2.37&maxlat=35.00&maxlon=-2.28 |
 | `/metrics/accessibility_score` | Score global | exemple : /metrics/accessibility_score?city_id=4818907&lat=34.95&lon=-2.33&radius_m=800 |
 
-vous pouvez faire cela pour la ville toute entiere : n est pas valable encore -- A corriger --
+vous pouvez calculer la densité - densité pondérée pour la ville toute entiere 
 
 ---
 
@@ -239,10 +239,11 @@ vous pouvez faire cela pour la ville toute entiere : n est pas valable encore --
 
 | Endpoint | Description | exemple de url |
 |-------|------------|------------|
-| `/pois` | Tous les POIs dans la base de données ou dans une ville | exemple: /pois OU /pois? city_id=4818907 |
-| `/pois_area` | POIs dans une zone | exemple : /pois_area?city_id=4818907&minlat=34.88&minlon=-2.37&maxlat=35.00&maxlon=-2.28&category=public_transport |
+| `/pois` | Tous les POIs dans la base de données | exemple: /pois|
+| `/pois_area` | POIs dans une ville ou dans une zone d'une ville | exemple : /pois_area?city_id=4818907&minlat=34.88&minlon=-2.37&maxlat=35.00&maxlon=-2.28&category=public_transport OU /pois_area?city_id=4818907&category=public_transport|
 | `/nearest_pois` | POIs les plus proches à un point | exemple : /nearest_pois?city_id=4818907&lat=34.95&lon=-2.30&category=public_transport&limit=5|
 
+- &limit= nbr de pois que vous voulez afficher 
 ---
 
 ## 🔒 Robustesse du système
