@@ -1,8 +1,17 @@
 from sqlalchemy import Column, Integer, String, Float, BigInteger, ForeignKey, Text, Boolean, DateTime
 from geoalchemy2 import Geometry
-from app.db import Base
+from db import Base
 from sqlalchemy.orm import relationship
 from datetime import datetime, timedelta
+
+class EvictionAudit(Base):
+    __tablename__ = "eviction_audit"
+
+    id = Column(Integer, primary_key=True, index=True)
+    run_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    evicted_cities_count = Column(Integer, default=0)
+    status = Column(String, default="success")  # ou "failed"
+    message = Column(String, nullable=True)      # message optionnel pour debug
 
 class City(Base):
     __tablename__ = "cities"

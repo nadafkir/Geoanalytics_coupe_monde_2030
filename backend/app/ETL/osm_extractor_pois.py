@@ -1,74 +1,68 @@
 import overpy
+from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
+from app.models import Poi, City
+from app.logger import logger  # Import du logger
 
-from app.models import Poi
-
-# Clés considérées comme catégories OSM
 CATEGORY_KEYS = [
     "amenity", "tourism", "leisure", "shop", "public_transport", "highway",
     "railway", "healthcare", "emergency", "education", "sport", "man_made",
     "historic", "natural", "office", "barrier"
 ]
 
-# ------------------------------------------
-# 0️⃣ Vérifier si des POIs existent déjà dans la DB
-# ------------------------------------------
+def update_city_after_pois_extraction(db: Session, city_id: int):
+    city = db.query(City).filter(City.id == city_id).first()
+    if not city:
+        logger.warning(f"City {city_id} not found.")
+        return
+
+    city.is_evicted = False
+    city.pois_count = db.query(Poi).filter(Poi.city_id == city_id).count()
+    city.last_access_at = datetime.utcnow()
+    city.updated_at = datetime.utcnow()
+    db.add(city)
+    db.commit()
+    logger.info(f"City {city.name_fr} updated after POIs extraction.")
+
 def check_existing_pois(db: Session, city_id: int, category: Optional[str] = None, type_value: Optional[str] = None) -> bool:
-    """
-    Vérifie si des POIs existent déjà en base pour les filtres donnés.
-    Retourne True si au moins un POI existe, False sinon.
-    """
     query = db.query(Poi).filter(Poi.city_id == city_id)
-    
-    # Construction dynamique des filtres
     filters = []
-    
+
     if category:
-        # Recherche exacte ou partielle (si category contient plusieurs valeurs séparées par des virgules)
         category_conditions = []
-        categories = [c.strip() for c in category.split(',')]
-        for cat in categories:
+        for cat in [c.strip() for c in category.split(',')]:
             category_conditions.append(Poi.category.contains(cat))
         filters.append(or_(*category_conditions))
     
     if type_value:
         filters.append(Poi.type == type_value)
     
-    # Appliquer tous les filtres avec AND
     if filters:
         query = query.filter(and_(*filters))
     
-    # Compter les résultats
     count = query.count()
     return count > 0
 
-# ------------------------------------------
-# 1️⃣ Construction dynamique de la requête
-# ------------------------------------------
 def build_query(city_id: int, category: Optional[str] = None, type_value: Optional[str] = None) -> str:
     area_id = 3600000000 + city_id
     filters = []
 
-    # Aucun filtre → toutes les catégories
     if category is None and type_value is None:
         filters = [f'node(area.searchArea)["{key}"];' for key in CATEGORY_KEYS]
     else:
         if category:
             filters.append(f'node(area.searchArea)["{category}"];')
-
         if type_value:
             if category:
-                # type dans la catégorie spécifique
                 filters.append(f'node(area.searchArea)["{category}"="{type_value}"];')
             else:
-                # type dans toutes les catégories possibles
                 for key in CATEGORY_KEYS:
                     filters.append(f'node(area.searchArea)["{key}"="{type_value}"];')
 
     filters_str = "\n".join(filters)
-    query = f"""
+    return f"""
     [out:json][timeout:300];
     area({area_id})->.searchArea;
     (
@@ -76,20 +70,16 @@ def build_query(city_id: int, category: Optional[str] = None, type_value: Option
     );
     out tags geom;
     """
-    return query
 
-# ------------------------------------------
-# 2️⃣ Extraction des POIs depuis Overpass
-# ------------------------------------------
-def extract_pois(city_id: int, category: Optional[str] = None, type: Optional[str] = None) -> List[dict]:
+def extract_pois(city_id: int, category: Optional[str] = None, type_value: Optional[str] = None) -> List[dict]:
     api = overpy.Overpass()
-    query = build_query(city_id, category, type)
+    query = build_query(city_id, category, type_value)
 
     try:
         result = api.query(query)
-        print(f"POIs récupérés pour ville {city_id} : {len(result.nodes)}")
+        logger.info(f"POIs retrieved for city {city_id}: {len(result.nodes)}")
     except Exception as e:
-        print("Erreur Overpass :", e)
+        logger.error(f"Overpass error for city {city_id}: {e}")
         return []
 
     pois = []
@@ -101,13 +91,12 @@ def extract_pois(city_id: int, category: Optional[str] = None, type: Optional[st
 
         types_values = set()
         categories = []
-
         for key in CATEGORY_KEYS:
             if key in tags:
                 types_values.add(tags[key])
                 categories.append(key)
 
-        type_value = list(types_values)[0] if types_values else None
+        type_val = list(types_values)[0] if types_values else None
         category_str = ",".join(categories) if categories else None
 
         pois.append({
@@ -119,20 +108,14 @@ def extract_pois(city_id: int, category: Optional[str] = None, type: Optional[st
             "addr_full": tags.get("addr:full"),
             "name": name,
             "operator": tags.get("operator"),
-            "type": type_value,
+            "type": type_val,
             "category": category_str
         })
     return pois
 
-# ------------------------------------------
-# 3️⃣ Stockage des POIs dans la DB
-# ------------------------------------------
 def store_pois(db: Session, pois: List[dict]):
-    """
-    Stocke les POIs dans la base de données.
-    """
     if not pois:
-        print("Aucun POI à stocker.")
+        logger.info("No POIs to store.")
         return
 
     stored_count = 0
@@ -141,13 +124,14 @@ def store_pois(db: Session, pois: List[dict]):
         if existing:
             p["stored"] = False
             continue
-        
+
         poi = Poi(**p)
         db.add(poi)
         p["stored"] = True
         stored_count += 1
-    
+
     db.commit()
-    print(f"{stored_count}/{len(pois)} POIs insérés ✔️")
-    
+    logger.info(f"{stored_count}/{len(pois)} POIs inserted ✔️")
+    if pois:
+        update_city_after_pois_extraction(db, pois[0]["city_id"])
     return stored_count

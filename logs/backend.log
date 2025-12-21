@@ -1,0 +1,20 @@
+2025-12-21 18:22:45,066 - INFO - backend_logger - Log file path: /app/logs/backend.log
+2025-12-21 18:23:16,054 - ERROR - backend_logger - Overpass error for city 4751516: Server load too high
+2025-12-21 18:23:44,841 - INFO - backend_logger - POIs retrieved for city 4751516: 205
+2025-12-21 18:23:44,988 - INFO - backend_logger - 74/74 POIs inserted ✔️
+2025-12-21 18:23:45,002 - INFO - backend_logger - City Cercle de Louta updated after POIs extraction.
+2025-12-21 18:25:59,229 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log
+2025-12-21 18:27:07,996 - ERROR - backend_logger - Overpass error for city 4761218: Server load too high
+2025-12-21 18:27:22,009 - INFO - backend_logger - POIs retrieved for city 4761218: 78
+2025-12-21 18:27:22,057 - INFO - backend_logger - 10/10 POIs inserted ✔️
+2025-12-21 18:27:22,079 - INFO - backend_logger - City Cercle de Jerada-Banlieue Sud updated after POIs extraction.
+2025-12-21 18:37:06,847 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log
+2025-12-21 18:37:15,845 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log
+2025-12-21 18:37:19,245 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log
+2025-12-21 18:37:24,934 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log
+2025-12-21 18:38:41,691 - INFO - backend_logger - POIs retrieved for city 4772874: 36
+2025-12-21 18:38:41,788 - INFO - backend_logger - 17/17 POIs inserted ✔️
+2025-12-21 18:38:41,815 - INFO - backend_logger - City Cercle de Bni Ouriaghel Algharbia updated after POIs extraction.
+2025-12-21 18:39:43,864 - INFO - backend_logger - POIs retrieved for city 4775758: 62
+2025-12-21 18:39:43,895 - INFO - backend_logger - 13/13 POIs inserted ✔️
+2025-12-21 18:39:43,907 - INFO - backend_logger - City Cercle de Bou Ahmed updated after POIs extraction.

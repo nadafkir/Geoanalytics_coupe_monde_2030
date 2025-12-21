@@ -5,7 +5,7 @@ from typing import Optional
 from app.db import get_db
 from app.routers.metrics.metric_manager import MetricManager
 from app.models import Poi, City
-
+from app.routers.eviction_util import increment_city_access
 
 router = APIRouter(prefix="/metrics", tags=["Batch Metrics"])
 
@@ -23,35 +23,17 @@ def metrics_for_city(
     - If no zone is provided, metrics are calculated for the whole city.
     - If zone is provided, coordinates are validated against city limits.
     """
+
     metric_mgr = MetricManager(db)
-    density_value, zone_msg = metric_mgr.density(city_id, minlat, minlon, maxlat, maxlon)
-
-    if density_value is None:
-        return {
-            "city_id": city_id,
-            "zone": {
-                "minlat": minlat,
-                "minlon": minlon,
-                "maxlat": maxlat,
-                "maxlon": maxlon
-            },
-            "metrics": {},
-            "message": zone_msg
-        }
-
-    return {
-        "city_id": city_id,
-        "zone": {
-            "minlat": minlat,
-            "minlon": minlon,
-            "maxlat": maxlat,
-            "maxlon": maxlon
-        },
-        "metrics": {
-            "density": density_value
-        },
-        "message": zone_msg
-    }
+    result = metric_mgr.density(
+        city_id=city_id,
+        minlat=minlat,
+        minlon=minlon,
+        maxlat=maxlat,
+        maxlon=maxlon
+    )
+    increment_city_access(db, city_id)
+    return result
 
 @router.get("/density_pondered")
 def get_density_pondered(
@@ -73,38 +55,9 @@ def get_density_pondered(
         maxlat=maxlat,
         maxlon=maxlon
     )
+    increment_city_access(db, city_id)
     return result
 
-# @router.get("/access_mobility")
-# def access_mobility(
-#     city_id: int = Query(..., description="ID de la ville"),
-#     lat: Optional[float] = Query(None, description="Latitude du point"),
-#     lon: Optional[float] = Query(None, description="Longitude du point"),
-#     minlat: Optional[float] = Query(None, description="Latitude minimale de la zone"),
-#     minlon: Optional[float] = Query(None, description="Longitude minimale de la zone"),
-#     maxlat: Optional[float] = Query(None, description="Latitude maximale de la zone"),
-#     maxlon: Optional[float] = Query(None, description="Longitude maximale de la zone"),
-#     radius_m: int = Query(800, description="Rayon en mètres pour calculer l'accessibility"),
-#     db: Session = Depends(get_db)
-# ):
-#     """
-#     Calcule le score Access Mobility pour une ville ou une zone spécifique.
-#     """
-#     metric_mgr = MetricManager(db)
-    
-#     # Appelle la méthode compute_access_mobility dans MetricManager
-#     result = metric_mgr.compute_access_mobility(
-#         city_id=city_id,
-#         lat=lat,
-#         lon=lon,
-#         minlat=minlat,
-#         minlon=minlon,
-#         maxlat=maxlat,
-#         maxlon=maxlon,
-#         radius_m=radius_m
-#     )
-    
-#     return result
 @router.get("/accessibility_score")
 def accessibility_score(
     city_id: int = Query(...),
@@ -129,5 +82,5 @@ def accessibility_score(
         maxlon=maxlon,
         radius_m=radius_m
     )
-
+    test_incr= increment_city_access(db, city_id)
     return result

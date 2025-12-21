@@ -1,0 +1,5 @@
+# requirements.txt pour eviction
+sqlalchemy
+psycopg2-binary
+geoalchemy2
+python-dotenv
