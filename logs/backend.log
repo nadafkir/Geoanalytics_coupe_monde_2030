@@ -255,3 +255,8 @@
 2025-12-24 14:50:03,266 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log
 2025-12-24 14:51:44,783 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log
 2025-12-24 14:51:47,414 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log
+2025-12-24 14:52:00,414 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log
+2025-12-24 17:44:09,867 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log
+2025-12-24 17:57:35,625 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log
+2025-12-24 18:09:49,740 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log
+2025-12-24 18:10:08,904 - INFO - backend_logger - Log file path inside container: /app/logs/backend.log

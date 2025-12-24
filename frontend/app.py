@@ -3,11 +3,18 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
+from dotenv import load_dotenv
+import os
 
 # =========================
 # CONFIG
 # =========================
-API_BASE = "http://localhost:8001"
+load_dotenv(dotenv_path="../.env")  # adapte le chemin si besoin
+
+API_BASE = os.getenv("API_BASE")
+DENSITY_COMBINED = os.getenv("DENSITY_COMBINED")
+ACCESSIBILITY_SCORE = os.getenv("ACCESSIBILITY_SCORE")
+
 st.set_page_config(
     page_title="DIMA MAGHRIB Analytics",
     page_icon="🇲🇦",
@@ -60,9 +67,9 @@ if st.session_state.run_analysis:
         # -------------------------
         # API CALLS
         # -------------------------
-        density_combined = requests.get(f"{API_BASE}/metrics/density_combined", params=params).json()
-        access = requests.get(f"{API_BASE}/metrics/accessibility_score", params=params).json()
-
+        print(DENSITY_COMBINED, API_BASE)
+        density_combined = requests.get(f"{API_BASE}{DENSITY_COMBINED}", params=params).json()
+        access = requests.get(f"{API_BASE}{ACCESSIBILITY_SCORE}", params=params).json()
         # -------------------------
         # EXTRACTION – DENSITY COMBINED
         # -------------------------
