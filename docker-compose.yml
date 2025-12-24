@@ -50,6 +50,21 @@ services:
       - geo_network
     command: ["python", "main.py"] # ou le script principal d'eviction
 
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    container_name: geo-frontend
+    restart: always
+    ports:
+      - "3001:80"          # 3001 sur l'hôte → 3002 dans le container
+    depends_on:
+      - geoanalytics_backend
+    networks:
+      - geo_network
+    volumes:
+      - ./frontend:/app
+  
 
 networks:
   geo_network:

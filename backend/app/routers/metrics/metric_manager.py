@@ -1,104 +1,106 @@
 # app/routers/metrics/metric_manager.py
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict, Union
 from app.models import Poi, City
 from app.ETL.osm_extractor_pois import extract_pois, store_pois, check_existing_pois
-from app.routers.metrics.utils import validate_zone, compute_area_km2, distance_m
+from app.routers.metrics.utils import validate_zone, compute_area_km2, distance_m, circle_area_km2
 import math
 
 class MetricManager:
   def __init__(self, db: Session):
         self.db = db
 
-  def density(self, city_id: int, minlat=None, minlon=None, maxlat=None, maxlon=None):
-    # Récupérer la ville
+  def density(
+    self,
+    city_id: int,
+    minlat: Optional[float] = None,
+    minlon: Optional[float] = None,
+    maxlat: Optional[float] = None,
+    maxlon: Optional[float] = None,
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
+    radius_m: Optional[float] = None
+) -> Union[Dict, str]:
+    """
+    Calcule la densité de POIs :
+    - Cercle si lat/lon/radius_m fournis
+    - Rectangle ou triangle si au moins une coordonnée min/max fournie
+    - Ville entière si aucune coordonnée fournie
+    """
+
     city = self.db.query(City).filter(City.id == city_id).first()
     if not city:
-        return None, "City not found."
+        return "City not found."
 
-    # Si aucune zone n'est fournie, utiliser les limites de la ville
-    if minlat is None or minlon is None or maxlat is None or maxlon is None:
-        minlat = city.minlat
-        minlon = city.minlon
-        maxlat = city.maxlat
-        maxlon = city.maxlon
-        zone_msg = "Entire city"
-    else:
-        # Vérifier et ajuster la zone
-        minlat, minlon, maxlat, maxlon, zone_msg = validate_zone(
-            city.minlat, city.minlon, city.maxlat, city.maxlon,
-            minlat, minlon, maxlat, maxlon
-        )
-        if minlat is None:
-            return None, zone_msg  # trop de coordonnées manquantes
-
-    # Vérifier si des POIs existent déjà
+    # Vérifier ou extraire les POIs
     if not check_existing_pois(self.db, city_id):
         pois_data = extract_pois(city_id)
         if pois_data:
             store_pois(self.db, pois_data)
         else:
-            return 0, "No POIs found even after extraction."
+            return "No POIs found even after extraction."
 
-    # Filtrer les POIs
-    pois = self.db.query(Poi).filter(
-        Poi.city_id == city_id,
-        Poi.lat >= minlat,
-        Poi.lat <= maxlat,
-        Poi.lon >= minlon,
-        Poi.lon <= maxlon
-    ).all()
-    if not pois:
-        return 0, "No POIs found in the selected area."
+    # --- Cercle ---
+    if lat is not None and lon is not None and radius_m is not None:
+        area_km2 = circle_area_km2(lat, lon, radius_m)
+        pois = [
+            p for p in self.db.query(Poi).filter(Poi.city_id == city_id).all()
+            if distance_m(lat, lon, p.lat, p.lon) <= radius_m
+        ]
+        zone_msg = f"Cercle de {radius_m}m autour du point fourni."
+        zone_info = {"center_lat": lat, "center_lon": lon, "radius_m": radius_m, "surface_km2": round(area_km2, 4)}
 
-    # Calcul de la surface et densité
-    area_km2 = compute_area_km2(minlat, minlon, maxlat, maxlon)
+    # --- Rectangle / Triangle ---
+    elif any(v is not None for v in [minlat, minlon, maxlat, maxlon]):
+        minlat, minlon, maxlat, maxlon, zone_msg = validate_zone(
+            city.minlat, city.minlon, city.maxlat, city.maxlon,
+            minlat, minlon, maxlat, maxlon
+        )
+        if minlat is None:
+            return zone_msg  # Trop de coordonnées manquantes ou invalides
+
+        area_km2 = compute_area_km2(minlat, minlon, maxlat, maxlon)
+        pois = self.db.query(Poi).filter(
+            Poi.city_id == city_id,
+            Poi.lat >= minlat,
+            Poi.lat <= maxlat,
+            Poi.lon >= minlon,
+            Poi.lon <= maxlon
+        ).all()
+        zone_info = {"minlat": minlat, "minlon": minlon, "maxlat": maxlat, "maxlon": maxlon, "surface_km2": round(area_km2, 4)}
+
+    # --- Ville entière ---
+    else:
+        minlat, minlon, maxlat, maxlon = city.minlat, city.minlon, city.maxlat, city.maxlon
+        area_km2 = compute_area_km2(minlat, minlon, maxlat, maxlon)
+        pois = self.db.query(Poi).filter(
+            Poi.city_id == city_id,
+            Poi.lat >= minlat, Poi.lat <= maxlat,
+            Poi.lon >= minlon, Poi.lon <= maxlon
+        ).all()
+        zone_msg = "Entire city"
+        zone_info = {"minlat": minlat, "minlon": minlon, "maxlat": maxlat, "maxlon": maxlon, "surface_km2": round(area_km2, 4)}
+
     density_value = len(pois) / area_km2 if area_km2 > 0 else 0
 
-    # Retour structuré avec city, zone et metrics
     return {
         "city_id": city.id,
         "name_fr": city.name_fr,
         "name_ar": city.name_ar,
-        "zone": {
-            "minlat": minlat,
-            "minlon": minlon,
-            "maxlat": maxlat,
-            "maxlon": maxlon
-        },
+        "zone": zone_info | {"zone_msg": zone_msg},
         "metrics": {
             "density": round(density_value, 4),
-            "surface_km2": round(area_km2, 4),
-            "nb_pois": len(pois),
-            "zone_msg": zone_msg
-        }
+            "nb_pois": len(pois)
+        },
     }
 
-
-  
-  def density_pondered(self, city_id: int, minlat=None, minlon=None, maxlat=None, maxlon=None):
-    # Récupérer la ville
+  def density_pondered(self, city_id: int,
+                     minlat=None, minlon=None, maxlat=None, maxlon=None,
+                     lat: Optional[float] = None, lon: Optional[float] = None, radius_m: Optional[float] = None):
     city = self.db.query(City).filter(City.id == city_id).first()
     if not city:
         return None, "City not found."
 
-    # Si aucune zone n'est fournie, utiliser les limites de la ville
-    if minlat is None or minlon is None or maxlat is None or maxlon is None:
-        minlat = city.minlat
-        minlon = city.minlon
-        maxlat = city.maxlat
-        maxlon = city.maxlon
-        zone_msg = "Entire city"
-    else:
-        # Vérifier et ajuster la zone
-        minlat, minlon, maxlat, maxlon, zone_msg = validate_zone(
-            city.minlat, city.minlon, city.maxlat, city.maxlon,
-            minlat, minlon, maxlat, maxlon
-        )
-        if minlat is None:
-            return None, zone_msg
-
-    # Vérifier si des POIs existent déjà
     if not check_existing_pois(self.db, city_id):
         pois_data = extract_pois(city_id)
         if pois_data:
@@ -106,21 +108,40 @@ class MetricManager:
         else:
             return 0, "No POIs found even after extraction."
 
-    # Filtrer les POIs
-    pois = self.db.query(Poi).filter(
-        Poi.city_id == city_id,
-        Poi.lat >= minlat,
-        Poi.lat <= maxlat,
-        Poi.lon >= minlon,
-        Poi.lon <= maxlon
-    ).all()
-    if not pois:
-        return 0, "No POIs found in the selected area."
+    # ✅ Priorité au cercle si lat/lon/radius_m fournis
+    if lat is not None and lon is not None and radius_m is not None:
+        area_km2 = circle_area_km2(lat, lon, radius_m)
+        pois = [
+            p for p in self.db.query(Poi).filter(Poi.city_id == city_id).all()
+            if distance_m(lat, lon, p.lat, p.lon) <= radius_m
+        ]
+        zone_msg = f"Cercle de {radius_m}m autour du point fourni."
+        zone_info = {"center_lat": lat, "center_lon": lon, "radius_m": radius_m, "surface_km2": round(area_km2, 4)}
 
-    # Calcul de la surface
-    area_km2 = compute_area_km2(minlat, minlon, maxlat, maxlon)
+    else:
+        # Rectangle ou triangle
+        if minlat is None and minlon is None and maxlat is None and maxlon is None:
+            minlat, minlon, maxlat, maxlon = city.minlat, city.minlon, city.maxlat, city.maxlon
+            zone_msg = "Entire city"
+        else:
+            minlat, minlon, maxlat, maxlon, zone_msg = validate_zone(
+                city.minlat, city.minlon, city.maxlat, city.maxlon,
+                minlat, minlon, maxlat, maxlon
+            )
+            if minlat is None:
+                return None, zone_msg
 
-    # Poids normalisés des catégories
+        pois = self.db.query(Poi).filter(
+            Poi.city_id == city_id,
+            Poi.lat >= minlat,
+            Poi.lat <= maxlat,
+            Poi.lon >= minlon,
+            Poi.lon <= maxlon
+        ).all()
+        area_km2 = compute_area_km2(minlat, minlon, maxlat, maxlon)
+        zone_info = {"minlat": minlat, "minlon": minlon, "maxlat": maxlat, "maxlon": maxlon, "surface_km2": round(area_km2, 4)}
+
+    # Calcul densité pondérée
     weights = {
         "public_transport": 0.09, "natural": 0.02, "amenity": 0.09,
         "shop": 0.08, "healthcare": 0.10, "emergency": 0.10, "leisure": 0.06,
@@ -128,47 +149,24 @@ class MetricManager:
         "office": 0.07, "tourism": 0.07, "historic": 0.05,
         "barrier": 0.03, "man_made": 0.04, "sport": 0.05
     }
-
-    # Score pondéré par catégorie
     score_par_cat = {cat: 0.0 for cat in weights}
-
     for p in pois:
         cats = p.category.split(",") if p.category else []
-        if not cats:
-            continue
-
         valid_cats = [c for c in cats if c in weights]
         if not valid_cats:
             continue
-
         max_cat = max(valid_cats, key=lambda c: weights[c])
-        max_w = round(weights[max_cat], 4)
-        score_par_cat[max_cat] = round(score_par_cat.get(max_cat, 0) + max_w, 4)
+        score_par_cat[max_cat] += round(weights[max_cat], 4)
 
-    # Calcul de la densité pondérée
     score_total = sum(score_par_cat.values())
     densite_ponderee = score_total / area_km2 if area_km2 > 0 else 0
+    effets = {cat: round(score / score_total, 4) for cat, score in score_par_cat.items()} if score_total > 0 else {cat: 0 for cat in score_par_cat}
 
-    # Effets par catégorie (proportion)
-    effets = (
-        {cat: round(score / score_total, 4) for cat, score in score_par_cat.items()}
-        if score_total > 0
-        else {cat: 0 for cat in score_par_cat}
-    )
-
-    # Retour structuré avec city, zone et metrics
     return {
         "city_id": city.id,
         "name_fr": city.name_fr,
         "name_ar": city.name_ar,
-        "zone": {
-            "minlat": minlat,
-            "minlon": minlon,
-            "maxlat": maxlat,
-            "maxlon": maxlon,
-            "surface_km2": round(area_km2, 4),
-            "zone_msg": zone_msg
-        },
+        "zone": {**zone_info, "zone_msg": zone_msg},
         "metrics": {
             "unité": "score pondere/km2",
             "densite_ponderee": round(densite_ponderee, 4),
@@ -177,6 +175,7 @@ class MetricManager:
             "effets_categories": effets,
         }
     }
+
 
   def compute_access_mobility(
     self,

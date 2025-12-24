@@ -2,6 +2,7 @@ from geopy.distance import geodesic
 from typing import Optional, Tuple
 from app.models import City
 from math import radians, cos, sin, sqrt
+import math
 
 def validate_zone(
     city_minlat: float, city_minlon: float,
@@ -71,6 +72,23 @@ def compute_area_km2(minlat, minlon, maxlat, maxlon):
     # Trop de coordonnées manquantes
     else:
         return None
+
+def circle_area_km2(lat: float, lon: float, radius_m: float) -> float:
+    # Calcul de la distance en degrés approximative
+    delta_lat = radius_m / 1000 / 111  # 1 degré latitude ≈ 111 km
+    delta_lon = radius_m / 1000 / (111 * abs(math.cos(math.radians(lat))) + 1e-8)
+
+    # Coordonnées des points extrêmes
+    minlat, maxlat = lat - delta_lat, lat + delta_lat
+    minlon, maxlon = lon - delta_lon, lon + delta_lon
+
+    # Largeur et hauteur en km
+    width = geodesic((lat, minlon), (lat, maxlon)).km
+    height = geodesic((minlat, lon), (maxlat, lon)).km
+
+    # Surface approximative du cercle comme rectangle
+    surface = width * height
+    return surface
 
 def distance_m(lat1, lon1, lat2, lon2):
     R = 6371000  # rayon de la Terre en mètres
