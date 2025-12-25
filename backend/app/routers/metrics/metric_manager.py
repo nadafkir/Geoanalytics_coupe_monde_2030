@@ -32,7 +32,7 @@ class MetricManager:
     if not city:
         return "City not found."
 
-    # Vérifier ou extraire les POIs
+    # Verifier ou extraire les POIs
     if not check_existing_pois(self.db, city_id):
         pois_data = extract_pois(city_id)
         if pois_data:
@@ -40,7 +40,7 @@ class MetricManager:
         else:
             return "No POIs found even after extraction."
 
-    # --- Cercle ---
+    # ---le cas d une surface point + rayon :  Cercle ---
     if lat is not None and lon is not None and radius_m is not None:
         area_km2 = circle_area_km2(lat, lon, radius_m)
         pois = [
@@ -50,7 +50,7 @@ class MetricManager:
         zone_msg = f"Cercle de {radius_m}m autour du point fourni."
         zone_info = {"center_lat": lat, "center_lon": lon, "radius_m": radius_m, "surface_km2": round(area_km2, 4)}
 
-    # --- Rectangle / Triangle ---
+    # --- 0 missing:  Rectangle / 1 missing: Triangle ---
     elif any(v is not None for v in [minlat, minlon, maxlat, maxlon]):
         minlat, minlon, maxlat, maxlon, zone_msg = validate_zone(
             city.minlat, city.minlon, city.maxlat, city.maxlon,
@@ -69,7 +69,7 @@ class MetricManager:
         ).all()
         zone_info = {"minlat": minlat, "minlon": minlon, "maxlat": maxlat, "maxlon": maxlon, "surface_km2": round(area_km2, 4)}
 
-    # --- Ville entière ---
+    # ---params que id de la ville : Ville entière ---
     else:
         minlat, minlon, maxlat, maxlon = city.minlat, city.minlon, city.maxlat, city.maxlon
         area_km2 = compute_area_km2(minlat, minlon, maxlat, maxlon)
@@ -81,7 +81,7 @@ class MetricManager:
         zone_msg = "Entire city"
         zone_info = {"minlat": minlat, "minlon": minlon, "maxlat": maxlat, "maxlon": maxlon, "surface_km2": round(area_km2, 4)}
 
-    density_value = len(pois) / area_km2 if area_km2 > 0 else 0
+    density_value = len(pois)*0.1 / area_km2 if area_km2 > 0 else 0
 
     return {
         "city_id": city.id,
@@ -108,7 +108,7 @@ class MetricManager:
         else:
             return 0, "No POIs found even after extraction."
 
-    # ✅ Priorité au cercle si lat/lon/radius_m fournis
+    # le cas d une surface point + rayon :  Cercle 
     if lat is not None and lon is not None and radius_m is not None:
         area_km2 = circle_area_km2(lat, lon, radius_m)
         pois = [
@@ -119,11 +119,12 @@ class MetricManager:
         zone_info = {"center_lat": lat, "center_lon": lon, "radius_m": radius_m, "surface_km2": round(area_km2, 4)}
 
     else:
-        # Rectangle ou triangle
+        # --- toute la ville  ---
         if minlat is None and minlon is None and maxlat is None and maxlon is None:
             minlat, minlon, maxlat, maxlon = city.minlat, city.minlon, city.maxlat, city.maxlon
             zone_msg = "Entire city"
         else:
+             # --- 0 missing:  Rectangle / 1 missing: Triangle ---
             minlat, minlon, maxlat, maxlon, zone_msg = validate_zone(
                 city.minlat, city.minlon, city.maxlat, city.maxlon,
                 minlat, minlon, maxlat, maxlon
@@ -141,7 +142,7 @@ class MetricManager:
         area_km2 = compute_area_km2(minlat, minlon, maxlat, maxlon)
         zone_info = {"minlat": minlat, "minlon": minlon, "maxlat": maxlat, "maxlon": maxlon, "surface_km2": round(area_km2, 4)}
 
-    # Calcul densité pondérée
+    # Calcul densité ponderee
     weights = {
         "public_transport": 0.09, "natural": 0.02, "amenity": 0.09,
         "shop": 0.08, "healthcare": 0.10, "emergency": 0.10, "leisure": 0.06,
@@ -199,7 +200,7 @@ class MetricManager:
     - radius_m: rayon en mètres pour le mode rayon
     """
 
-    # Poids par catégorie générale
+    # Poids par categorie generale
     weights = {
         "public_transport": 0.15, "railway": 0.13, "highway": 0.10,
         "healthcare": 0.09, "education": 0.08, "shop": 0.07, "emergency": 0.10,
@@ -208,17 +209,18 @@ class MetricManager:
         "natural": 0.01, "man_made": 0.02, "barrier": 0.0
     }
 
-    # Poids spécifiques pour certains sous-types
+    # Poids specifiques pour certains types qui ppartiennent a amenity 
+    # mais ils ont le role de mobility 
+    # (osm ne prepare pas bien ses données)
     subtype_weights = {
         "taxi": 0.12,
         "bicycle_rental": 0.10,
         "car_rental": 0.10,
         "charging_station": 0.09,
         "fuel": 0.08
-        # ajouter ici d'autres sous-types si nécessaire
     }
 
-    # Initialisation des scores par catégorie
+    # Initialisation des scores par categorie
     score_par_cat = {cat: 0.0 for cat in weights}
 
     for poi in pois:
@@ -258,7 +260,7 @@ class MetricManager:
         "scores_categories": {cat: round(score, 4) for cat, score in score_par_cat.items()}
     }
 
-  def compute_network_density( 
+  def compute_network_density(  
         self,
         pois,
         mode,
@@ -272,27 +274,32 @@ class MetricManager:
     ):
     import math
 
-    # Poids des catégories existantes
+    # -------------------------
+    # Poids des catégories principales
+    # -------------------------
     weights = {
         "public_transport": 0.1,
         "railway": 0.1,
         "highway": 0.1,
     }
 
-    # POIs amenity à inclure avec un poids de 0.01
+    # POIs 'amenity' à inclure avec poids faible
     amenity_types = [
         "taxi", "car_rental", "bicycle_rental", "bicycle_repair_station",
         "vehicle_impound", "fuel", "charging_station", 
         "parking", "parking_entrance", "parking_space", "vehicle_inspection"
     ]
     for amenity in amenity_types:
-        weights[amenity] = 0.01
+        weights[amenity] = 0.1  # poids faible pour ces POIs de mobilité secondaire
 
     # Initialisation des scores par catégorie
     score_par_cat = {cat: 0.0 for cat in weights}
 
+    # -------------------------
+    # Parcours des POIs
+    # -------------------------
     for poi in pois:
-        # Vérification si le POI est dans la zone ou le rayon
+        # Vérification si le POI est dans la zone ou dans le rayon
         if mode == "zone":
             if not (minlat <= poi.lat <= maxlat and minlon <= poi.lon <= maxlon):
                 continue
@@ -301,13 +308,26 @@ class MetricManager:
             dist = distance_m(lat, lon, poi.lat, poi.lon)
             if dist > radius_m:
                 continue
-            decay = math.exp(-dist / radius_m)
+            decay = math.exp(-dist / radius_m)  # décroissance selon distance
 
         if poi.category:
-            cats = [c for c in poi.category.split(",") if c in weights]
-            if cats:
-                score_par_cat[cats[0]] += weights[cats[0]] * decay
+            cats = poi.category.split(",")
+            filtered_cats = []
 
+            for c in cats:
+                # Les POIs principaux de transport
+                if c in ["public_transport", "railway", "highway"]:
+                    filtered_cats.append(c)
+                # Les POIs de type 'amenity' si leur type est dans la liste amenity_types
+                elif c == "amenity" and poi.type in amenity_types:
+                    filtered_cats.append(poi.type)  # utiliser le type réel comme catégorie
+
+            if filtered_cats:
+                score_par_cat[filtered_cats[0]] += weights[filtered_cats[0]] * decay
+
+    # -------------------------
+    # Score global et par catégorie
+    # -------------------------
     return {
         "score_raw": round(sum(score_par_cat.values()), 3),
         "scores_categories": score_par_cat
@@ -355,15 +375,15 @@ class MetricManager:
         maxlon: Optional[float] = None,
         radius_m: int = 800
     ):
-        # 1️⃣ Ville
+        # Ville
         city = self.db.query(City).filter(City.id == city_id).first()
         if not city:
             return {"error": "City not found."}
 
-        # 2️⃣ Déterminer le mode
+        # Determiner le mode
         mode = "radius" if lat is not None and lon is not None else "zone"
 
-        # 3️⃣ Validation zone (UNIQUEMENT pour ZONE)
+        # Validation zone (UNIQUEMENT pour ZONE)
         if mode == "zone":
             minlat, minlon, maxlat, maxlon, zone_msg = validate_zone(
                 city.minlat, city.minlon, city.maxlat, city.maxlon,
@@ -374,7 +394,7 @@ class MetricManager:
         else:
             zone_msg = f"Cercle de {radius_m}m autour du point fourni."
 
-        # 4️⃣ POIs
+        # POIs
         if not check_existing_pois(self.db, city_id):
             pois_data = extract_pois(city_id)
             if pois_data:
@@ -386,13 +406,13 @@ class MetricManager:
         if not pois:
             return {"error": "No POIs available."}
 
-        # 5️⃣ Surface
+        # Surface
         if mode == "zone":
             area_km2 = compute_area_km2(minlat, minlon, maxlat, maxlon)
         else:
             area_km2 = math.pi * (radius_m / 1000) ** 2
 
-        # 6️⃣ Metrics
+        # return Metrics
         return {
             "city": {
                 "name_fr": city.name_fr,

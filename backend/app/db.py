@@ -6,9 +6,6 @@ from dotenv import load_dotenv
 # Charger variables depuis .env
 load_dotenv()
 
-print("USER:", os.getenv("POSTGRES_USER"))
-print("DB:", os.getenv("POSTGRES_DB"))
-
 # Déterminer l'hôte automatiquement
 is_docker = os.path.exists("/.dockerenv") or os.getenv("DOCKER_ENV") == "true"
 DB_HOST = "db" if is_docker else "localhost"
